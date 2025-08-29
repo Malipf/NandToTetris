@@ -4,7 +4,7 @@ import qualified Parser (parseFile)
 import qualified CodeWriter (writeFileCommands)
 import System.IO (writeFile)
 import System.Environment (getArgs)
-import System.Directory (doesDirectoryExist, listDirectory, removeFile)
+import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath (takeFileName, takeExtension, (</>), takeBaseName, replaceExtension)
 
 main :: IO ()
