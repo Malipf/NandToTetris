@@ -14,8 +14,6 @@ main = do
     [path_] -> do
       let path = removeTrailingSlash path_
       isDir <- doesDirectoryExist path
-      vmFiles <- if isDir then getVMFiles path else return [path]
-
       if isDir
         then do
           vmFiles <- getVMFiles path
