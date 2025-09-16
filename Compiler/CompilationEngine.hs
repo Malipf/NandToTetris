@@ -10,7 +10,7 @@ data AST
   | VarDec [AST]
   | Statements [AST]
   | DoStatement AST
-  | LetStatement AST AST
+  | LetStatement AST (Maybe AST) AST
   | WhileStatement AST AST
   | ReturnStatement (Maybe AST)
   | IfStatement AST AST (Maybe AST)
@@ -18,17 +18,17 @@ data AST
   | Expression [AST]
   | Term AST
   | SubroutineCall String [AST]
-  | Identifier String
-  | Keyword String
-  | Symbol String
-  | IntVal Int
-  | StrVal String
+  | IdentifierAST String
+  | KeywordAST String
+  | SymbolAST String
+  | IntValAST Int
+  | StrValAST String
   | Void
   | Block [AST]
   deriving (Show, Eq)
 
 
-data ParseState = ParseState { tokens :: [Token], astNodes :: [AST] }
+data ParseState = ParseState [Token] [AST]
 
 peekToken :: ParseState -> Maybe Token
 peekToken (ParseState (t:_) _) = Just t
@@ -41,11 +41,11 @@ consumeToken (ParseState (t:ts) nodes) expected
 consumeToken _ _  = error "Unexpected end of tokens"
 
 toAST :: Token -> AST
-toAST (Keyword k) = Keyword (show k)
-toAST (Symbol s) = Symbol (show s)
-toAST (Identifier i) = Identifier i
-toAST (IntVal i) = IntVal i
-toAST (StrVal s) = StrVal s
+toAST (Keyword k) = KeywordAST (show k)
+toAST (Symbol s) = SymbolAST (show s)
+toAST (Identifier i) = IdentifierAST i
+toAST (IntVal i) = IntValAST i
+toAST (StrVal s) = StrValAST s
 
 compileClass :: [Token] -> AST
 compileClass tokens =
@@ -61,7 +61,7 @@ compileClass tokens =
     Class className classVarDecs subroutineDecs
 
 compileIdentifier :: ParseState -> (String, ParseState)
-compileIdentifier (ParseState (Identifier i : ts) nodes) = (i, ParseState ts (nodes ++ [Identifier i]))
+compileIdentifier (ParseState (Identifier i : ts) nodes) = (i, ParseState ts (nodes ++ [IdentifierAST i]))
 compileIdentifier _ = error "Expected Identifier"
 
 compileClassVarDecs :: ParseState -> ([AST], ParseState)
@@ -69,13 +69,13 @@ compileClassVarDecs state =
   case peekToken state of
     Just (Keyword STATIC) ->
       let (varDec, restState) = compileVarDec state
-(nextVarDecs, finalState) = compileClassVarDecs restState
+          (nextVarDecs, finalState) = compileClassVarDecs restState
       in (varDec : nextVarDecs, finalState)
-         Just (Keyword FIELD) ->
-let (varDec, restState) = compileVarDec state
-                          (nextVarDecs, finalState) = compileClassVarDecs restState
-  in (varDec : nextVarDecs, finalState)
-     _ -> ([], state)
+    Just (Keyword FIELD) ->
+      let (varDec, restState) = compileVarDec state
+          (nextVarDecs, finalState) = compileClassVarDecs restState
+      in (varDec : nextVarDecs, finalState)
+    _ -> ([], state)
 
 
 compileSubroutineDecs :: ParseState -> ([AST], ParseState)
@@ -126,11 +126,12 @@ compileParameterList state =
     _ ->
       let (typeVal, state1) = compileType state
           (nameVal, state2) = compileIdentifier state1
-          (nextParams, finalState) =
-            case peekToken state2 of
-              Just (Symbol COMMA) -> compileParameterList (consumeToken state2 (Symbol COMMA))
-              _ -> ([], state2)
-      in (ParameterList (Keyword typeVal : Identifier nameVal : nextParams), finalState)
+      in case peekToken state2 of
+           Just (Symbol COMMA) ->
+             let state3 = consumeToken state2 (Symbol COMMA)
+                 (rest, final) = compileParameterList state3
+             in (KeywordAST typeVal : IdentifierAST nameVal : rest, final)
+           _ -> ([KeywordAST typeVal, IdentifierAST nameVal], state2)
 
 compileSubroutineBody :: ParseState -> (AST, ParseState)
 compileSubroutineBody state =
@@ -160,7 +161,7 @@ compileVarDec state =
     (varName, state3) = compileIdentifier state2
     (moreVars, state4) = compileVarList state3
     state5 = consumeToken state4 (Symbol SEMICOLON)
-  in (VarDec (Keyword typeVal : Identifier varName : moreVars), state5)
+  in (VarDec (KeywordAST typeVal : IdentifierAST varName : moreVars), state5)
 
 compileVarList :: ParseState -> ([AST], ParseState)
 compileVarList state =
@@ -168,7 +169,7 @@ compileVarList state =
     Just (Symbol COMMA) ->
       let (varName, state1) = compileIdentifier (consumeToken state (Symbol COMMA))
           (moreVars, finalState) = compileVarList state1
-      in (Identifier varName : moreVars, finalState)
+      in (IdentifierAST varName : moreVars, finalState)
     _ -> ([], state)
 
 
@@ -220,7 +221,7 @@ compileLet state =
     state7 = consumeToken state3 (Symbol EQUAL)
     (expr2, state8) = compileExpression state7
     state9 = consumeToken state8 (Symbol SEMICOLON)
-  in (LetStatement (Identifier varName) maybeArray expr2, state9)
+  in (LetStatement (IdentifierAST varName) maybeArray expr2, state9)
 
 
 compileWhile :: ParseState -> (AST, ParseState)
@@ -278,59 +279,59 @@ compileOpTerm state =
       let state1 = consumeToken state (Symbol PLUS)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "+" : term : nextTerms, finalState)
+      in (SymbolAST "+" : term : nextTerms, finalState)
     Just (Symbol MINUS) ->
       let state1 = consumeToken state (Symbol MINUS)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "-" : term : nextTerms, finalState)
+      in (SymbolAST "-" : term : nextTerms, finalState)
     Just (Symbol ASTERISK) ->
       let state1 = consumeToken state (Symbol ASTERISK)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "*" : term : nextTerms, finalState)
+      in (SymbolAST "*" : term : nextTerms, finalState)
     Just (Symbol SLASH) ->
       let state1 = consumeToken state (Symbol SLASH)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "/" : term : nextTerms, finalState)
+      in (SymbolAST "/" : term : nextTerms, finalState)
     Just (Symbol AMPERSAND) ->
       let state1 = consumeToken state (Symbol AMPERSAND)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "&" : term : nextTerms, finalState)
+      in (SymbolAST "&" : term : nextTerms, finalState)
     Just (Symbol BAR) ->
       let state1 = consumeToken state (Symbol BAR)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "|" : term : nextTerms, finalState)
+      in (SymbolAST "|" : term : nextTerms, finalState)
     Just (Symbol LESS_THAN) ->
       let state1 = consumeToken state (Symbol LESS_THAN)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "<" : term : nextTerms, finalState)
+      in (SymbolAST "<" : term : nextTerms, finalState)
     Just (Symbol GREATER_THAN) ->
       let state1 = consumeToken state (Symbol GREATER_THAN)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol ">" : term : nextTerms, finalState)
+      in (SymbolAST ">" : term : nextTerms, finalState)
     Just (Symbol EQUAL) ->
       let state1 = consumeToken state (Symbol EQUAL)
           (term, state2) = compileTerm state1
           (nextTerms, finalState) = compileOpTerm state2
-      in (Symbol "=" : term : nextTerms, finalState)
+      in (SymbolAST "=" : term : nextTerms, finalState)
     _ -> ([], state)
 
 
 compileTerm :: ParseState -> (AST, ParseState)
 compileTerm state =
   case peekToken state of
-    Just (IntVal i) -> (Term (IntVal i), consumeToken state (IntVal i))
-    Just (StrVal s) -> (Term (StrVal s), consumeToken state (StrVal s))
-    Just (Keyword TRUE) -> (Term (Keyword "true"), consumeToken state (Keyword TRUE))
-    Just (Keyword FALSE) -> (Term (Keyword "false"), consumeToken state (Keyword FALSE))
-    Just (Keyword NULL) -> (Term (Keyword "null"), consumeToken state (Keyword NULL))
-    Just (Keyword THIS) -> (Term (Keyword "this"), consumeToken state (Keyword THIS))
+    Just (IntVal i) -> (Term (IntValAST i), consumeToken state (IntVal i))
+    Just (StrVal s) -> (Term (StrValAST s), consumeToken state (StrVal s))
+    Just (Keyword TRUE) -> (Term (KeywordAST "true"), consumeToken state (Keyword TRUE))
+    Just (Keyword FALSE) -> (Term (KeywordAST "false"), consumeToken state (Keyword FALSE))
+    Just (Keyword NULL) -> (Term (KeywordAST "null"), consumeToken state (Keyword NULL))
+    Just (Keyword THIS) -> (Term (KeywordAST "this"), consumeToken state (Keyword THIS))
     Just (Symbol LP) ->
       let state1 = consumeToken state (Symbol LP)
           (expr, state2) = compileExpression state1
@@ -338,27 +339,27 @@ compileTerm state =
       in (Term expr, state3)
     Just (Symbol MINUS) ->
       let state1 = consumeToken state (Symbol MINUS)
-          (term, state2) = compileTerm state1
-      in (Term (Symbol "-" : term), state2)
+          (t, state2) = compileTerm state1
+      in (Term (Expression [SymbolAST "-", t]), state2)
     Just (Symbol TILDE) ->
       let state1 = consumeToken state (Symbol TILDE)
-          (term, state2) = compileTerm state1
-      in (Term (Symbol "~" : term), state2)
+          (t, state2) = compileTerm state1
+      in (Term (Expression [SymbolAST "~", t]), state2)
     Just (Identifier i) ->
       let state1 = consumeToken state (Identifier i)
       in case peekToken state1 of
         Just (Symbol LP) ->
-          let (call, finalState) = compileSubroutineCall state
+          let (call, finalState) = compileSubroutineCall state1
           in (Term call, finalState)
         Just (Symbol POINT) ->
-          let (call, finalState) = compileSubroutineCall state
+          let (call, finalState) = compileSubroutineCall state1
           in (Term call, finalState)
         Just (Symbol LB) ->
           let state2 = consumeToken state1 (Symbol LB)
               (expr, state3) = compileExpression state2
               state4 = consumeToken state3 (Symbol RB)
-          in (Term (Identifier i : Symbol "[" : expr : Symbol "]"), state4)
-        _ -> (Term (Identifier i), state1)
+          in (Term (Expression [IdentifierAST i, SymbolAST "[", expr, SymbolAST "]"]), state4)
+        _ -> (Term (IdentifierAST i), state1)
     _ -> error $ "Expected a term, but got: " ++ show (peekToken state)
 
 compileSubroutineCall :: ParseState -> (AST, ParseState)
@@ -424,7 +425,7 @@ toXML (SubroutineDec subType retType subName params body) indent =
   indentStr (indent + 1) ++ "<keyword>" ++ subType ++ "</keyword>\n" ++
   indentStr (indent + 1) ++ "<keyword>" ++ retType ++ "</keyword>\n" ++
   indentStr (indent + 1) ++ "<identifier>" ++ subName ++ "</identifier>\n" ++
-  toXML params (indent + 1) ++
+  toXML (ParameterList params) (indent + 1) ++
   toXML body (indent + 1) ++
   indentStr indent ++ "</subroutineDec>\n"
 
@@ -520,11 +521,11 @@ toXML (SubroutineCall name exprs) indent =
   toXML (ExpressionList exprs) (indent + 1) ++
   indentStr indent ++ "</subroutineCall>\n"
 
-toXML (Identifier i) indent = indentStr indent ++ "<identifier>" ++ i ++ "</identifier>\n"
-toXML (Keyword k) indent = indentStr indent ++ "<keyword>" ++ k ++ "</keyword>\n"
-toXML (Symbol s) indent = indentStr indent ++ "<symbol>" ++ s ++ "</symbol>\n"
-toXML (IntVal i) indent = indentStr indent ++ "<integerConstant>" ++ show i ++ "</integerConstant>\n"
-toXML (StrVal s) indent = indentStr indent ++ "<stringConstant>" ++ s ++ "</stringConstant>\n"
+toXML (IdentifierAST i) indent = indentStr indent ++ "<identifier>" ++ i ++ "</identifier>\n"
+toXML (KeywordAST k) indent = indentStr indent ++ "<keyword>" ++ k ++ "</keyword>\n"
+toXML (SymbolAST s) indent = indentStr indent ++ "<symbol>" ++ s ++ "</symbol>\n"
+toXML (IntValAST i) indent = indentStr indent ++ "<integerConstant>" ++ show i ++ "</integerConstant>\n"
+toXML (StrValAST s) indent = indentStr indent ++ "<stringConstant>" ++ s ++ "</stringConstant>\n"
 
 indentStr :: Int -> String
 indentStr n = replicate (n * 2) ' '

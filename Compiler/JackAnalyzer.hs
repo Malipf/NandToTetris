@@ -1,7 +1,7 @@
 module JackAnalyzer where
 
 import JackTokenizer (parseFile)
-import CompilationEngine (compileTokens)
+import CompilationEngine (compileClass, astToXML)
 import System.IO (writeFile)
 import System.Environment (getArgs)
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -26,9 +26,9 @@ main = do
 processJackFile :: FilePath -> IO ()
 processJackFile jackFile = do
   tokens <- parseFile jackFile
-  let xmlLines = map compileTokens tokens
+  let xmlLines = astToXML . compileClass $ tokens
   let outFile = replaceExtension jackFile ".xml"
-  writeFile outFile (unlines xmlLines)
+  writeFile outFile xmlLines
 
 getJackFiles :: FilePath -> IO [FilePath]
 getJackFiles dir = do
