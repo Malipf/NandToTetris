@@ -1,11 +1,11 @@
 module JackAnalyzer where
 
+import CompilationEngine (astToXML, compileClass)
 import JackTokenizer (parseFile)
-import CompilationEngine (compileClass, astToXML)
-import System.IO (writeFile)
-import System.Environment (getArgs)
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.FilePath (takeFileName, takeExtension, (</>), takeBaseName, replaceExtension)
+import System.Environment (getArgs)
+import System.FilePath (replaceExtension, takeBaseName, takeExtension, takeFileName, (</>))
+import System.IO (writeFile)
 
 main :: IO ()
 main = do
@@ -34,4 +34,3 @@ getJackFiles :: FilePath -> IO [FilePath]
 getJackFiles dir = do
   files <- listDirectory dir
   return [dir </> f | f <- files, takeExtension f == ".jack"]
-

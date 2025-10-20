@@ -1,5 +1,6 @@
 module CompilationEngine where
 
+import Data.Char (toLower)
 import JackTokenizer
 
 data AST
@@ -12,7 +13,7 @@ data AST
   | WhileStatement AST [AST]
   | DoStatement AST
   | ReturnStatement (Maybe AST)
-  | Expression AST [(Token, AST)]
+  | Expression AST [(String, AST)]
   | ExpressionList (Maybe (AST, [AST]))
   | FunctionCall String AST
   | SubroutineCall String String AST
@@ -77,7 +78,7 @@ compileVarDec state keyword =
       (varName, state4) = compileIdentifier state3
       (restVars, state5) = compileRestVars state4
       state6 = consumeToken state5 (Symbol SEMICOLON)
-   in (VarDec (show keyword) varType (varName : restVars), state6)
+   in (VarDec (decapitilize . show $ keyword) varType (varName : restVars), state6)
 
 compileRestVars :: [Token] -> ([String], [Token])
 compileRestVars state =
@@ -92,7 +93,7 @@ compileRestVars state =
 compileType :: [Token] -> (String, [Token])
 compileType state =
   case peekToken state of
-    Just (Keyword BOOLEAN) -> ("bool", tail state)
+    Just (Keyword BOOLEAN) -> ("boolean", tail state)
     Just (Keyword INT) -> ("int", tail state)
     Just (Keyword CHAR) -> ("char", tail state)
     Just (Identifier i) -> (i, tail state)
@@ -123,7 +124,7 @@ compileSubroutineDec state keyword =
       (parameterList, state6) = compileParameterList state5
       state7 = consumeToken state6 (Symbol RP)
       (subroutineBody, state8) = compileSubroutineBody state7
-   in (Subroutine (show keyword) returnType subroutineName parameterList subroutineBody, state8)
+   in (Subroutine (decapitilize . show $ keyword) returnType subroutineName parameterList subroutineBody, state8)
 
 compileReturnType :: [Token] -> (String, [Token])
 compileReturnType state =
@@ -145,8 +146,7 @@ compileParameterList state =
       let (varType, state2) = compileType state
           (varName, state3) = compileIdentifier state2
           (restVars, state4) = compileParameterList state3
-          state5 = consumeToken state4 (Symbol RP)
-       in ((varType, varName) : restVars, state5)
+       in ((varType, varName) : restVars, state4)
 
 compileSubroutineVarDecs :: [Token] -> ([AST], [Token])
 compileSubroutineVarDecs state =
@@ -185,17 +185,17 @@ compileStatements state =
       let (statement, restState) = compileReturn state
           (nextStatements, finalState) = compileStatements restState
        in (statement : nextStatements, finalState)
-    _ -> ([],state)
+    _ -> ([], state)
 
 compileLet :: [Token] -> (AST, [Token])
 compileLet state =
   let state2 = tail state
       (varName, state3) = compileIdentifier state2
-      (varExpression, state4) = compileLetExpression state3
+      (iExpression, state4) = compileLetExpression state3
       state5 = consumeToken state4 (Symbol EQUAL)
-      (expression, state6) = compileExpression state5
+      (oExpression, state6) = compileExpression state5
       state7 = consumeToken state6 (Symbol SEMICOLON)
-   in (LetStatement varName varExpression expression, state7)
+   in (LetStatement varName iExpression oExpression, state7)
 
 compileLetExpression :: [Token] -> (Maybe AST, [Token])
 compileLetExpression state =
@@ -228,6 +228,7 @@ compileElse state =
           (statements, state4) = compileStatements state3
           state5 = consumeToken state4 (Symbol RCB)
        in (Just statements, state5)
+    _ -> (Nothing, state)
 
 compileWhile :: [Token] -> (AST, [Token])
 compileWhile state =
@@ -283,13 +284,13 @@ maybeElem (Just x) xs = x `elem` xs
 maybeJust :: Maybe a -> a
 maybeJust (Just x) = x
 
-compileExpressionRest :: [Token] -> ([(Token, AST)], [Token])
+compileExpressionRest :: [Token] -> ([(String, AST)], [Token])
 compileExpressionRest state
   | maybeElem (peekToken state) ops =
       let state2 = tail state
           (term, state3) = compileTerm state2
           (restTerms, state4) = compileExpressionRest state3
-       in ((maybeJust (peekToken state), term) : restTerms, state4)
+       in ((decapitilize . last . words . show . maybeJust . peekToken $ state, term) : restTerms, state4)
   | otherwise = ([], state)
 
 compileExpressionList :: [Token] -> (AST, [Token])
@@ -333,7 +334,6 @@ compileSubroutineCall state =
           (expressions, state6) = compileExpressionList state5
           state7 = consumeToken state6 (Symbol RP)
        in (SubroutineCall typeName subroutineName expressions, state7)
-    _ -> error ""
 
 peekTwo :: [Token] -> Maybe (Token, Token)
 peekTwo [] = Nothing
@@ -358,11 +358,11 @@ compileTerm state =
         then
           let state2 = tail state
               (term, state3) = compileTerm state2
-           in (TermOp (show i) term, state3)
+           in (TermOp (decapitilize . show $ i) term, state3)
         else error ""
     Just (Keyword i, _) ->
       if i `elem` keyConstant
-        then (TermConstant (show i), tail state)
+        then (TermConstant (decapitilize . show $ i), tail state)
         else error ""
     Just (Identifier i, Symbol LB) ->
       let state2 = tail . tail $ state
@@ -376,3 +376,215 @@ compileTerm state =
            in (TermCall subroutine, state2)
         else (TermVar i, tail state)
 
+indent :: String -> String
+indent = unlines . map ("  " ++) . lines
+
+decapitilize :: String -> String
+decapitilize "" = ""
+decapitilize (x : xs) = toLower x : decapitilize xs
+
+basicTag :: String -> String -> String
+basicTag tag content = '<' : tag ++ "> " ++ content ++ " </" ++ tag ++ ">\n"
+
+typeTag :: String -> String
+typeTag x = case x of
+  "boolean" -> basicTag "keyword" x
+  "int" -> basicTag "keyword" x
+  "char" -> basicTag "keyword" x
+  "void" -> basicTag "keyword" x
+  _ -> basicTag "identifier" x
+
+paramTag :: [(String, String)] -> [String]
+paramTag [] = []
+paramTag ((t, n) : xs) = (typeTag t ++ basicTag "identifier" n) : paramTag xs
+
+opTag :: String -> String
+opTag x = case x of
+  "plus" -> basicTag "symbol" "+"
+  "minus" -> basicTag "symbol" "-"
+  "asterisk" -> basicTag "symbol" "*"
+  "slash" -> basicTag "symbol" "/"
+  "ampersand" -> basicTag "symbol" "&amp;"
+  "bar" -> basicTag "symbol" "|"
+  "less_than" -> basicTag "symbol" "&lt;"
+  "greater_than" -> basicTag "symbol" "&gt;"
+  "equal" -> basicTag "symbol" "="
+
+restTermTag :: [(String, AST)] -> [String]
+restTermTag [] = []
+restTermTag ((o, t) : xs) = (opTag o ++ astToXML t) : restTermTag xs
+
+putComma :: [String] -> [String]
+putComma [] = []
+putComma [x] = [x]
+putComma (x : xs) = x : basicTag "symbol" "," : putComma xs
+
+astToXML :: AST -> String
+astToXML (Class cName vars subs) =
+  let classKeyword = basicTag "keyword" "class"
+      className = basicTag "identifier" cName
+      lcb = basicTag "symbol" "{"
+      rcb = basicTag "symbol" "}"
+      varDec = concatMap astToXML vars
+      subDec = concatMap astToXML subs
+      all = classKeyword ++ className ++ lcb ++ varDec ++ subDec ++ rcb
+   in "<class>\n" ++ indent all ++ "</class>\n"
+astToXML (VarDec "var" varType varNames) =
+  let vk = basicTag "keyword" "var"
+      vt = typeTag varType
+      vn = map (basicTag "identifier") varNames
+      end = basicTag "symbol" ";"
+      all = vk ++ vt ++ (concat . putComma) vn ++ end
+   in "<varDec>\n" ++ indent all ++ "</varDec>\n"
+astToXML (VarDec varKeyword varType varNames) =
+  let vk = basicTag "keyword" varKeyword
+      vt = typeTag varType
+      vn = map (basicTag "identifier") varNames
+      end = basicTag "symbol" ";"
+      all = vk ++ vt ++ (concat . putComma) vn ++ end
+   in "<classVarDec>\n" ++ indent all ++ "</classVarDec>\n"
+astToXML (Subroutine subType retType subName params body) =
+  let st = basicTag "keyword" subType
+      rt = typeTag retType
+      sn = basicTag "identifier" subName
+      lp = basicTag "symbol" "("
+      ps = "<parameterList>\n"
+      p = indent . concat . putComma . paramTag $ params
+      pe = "</parameterList>\n"
+      rp = basicTag "symbol" ")"
+      sb = astToXML body
+      all = st ++ rt ++ sn ++ lp ++ ps ++ p ++ pe ++ rp ++ sb
+   in "<subroutineDec>\n" ++ indent all ++ "</subroutineDec>\n"
+astToXML (SubroutineBody varDec statements) =
+  let lcb = basicTag "symbol" "{"
+      vd = concatMap astToXML varDec
+      st = "<statements>\n" ++ indent (concatMap astToXML statements) ++ "</statements>\n"
+      rcb = basicTag "symbol" "}"
+      all = lcb ++ vd ++ st ++ rcb
+   in "<subroutineBody>\n" ++ indent all ++ "</subroutineBody>\n"
+astToXML (LetStatement varName Nothing expression) =
+  let l = basicTag "keyword" "let"
+      vn = basicTag "identifier" varName
+      eq = basicTag "symbol" "="
+      ex = astToXML expression
+      sc = basicTag "symbol" ";"
+      all = l ++ vn ++ eq ++ ex ++ sc
+   in "<letStatement>\n" ++ indent all ++ "</letStatement>\n"
+astToXML (LetStatement varName (Just iExpression) oExpression) =
+  let l = basicTag "keyword" "let"
+      vn = basicTag "identifier" varName
+      lb = basicTag "symbol" "["
+      iEx = astToXML iExpression
+      rb = basicTag "symbol" "]"
+      eq = basicTag "symbol" "="
+      oEx = astToXML oExpression
+      sc = basicTag "symbol" ";"
+      all = l ++ vn ++ lb ++ iEx ++ rb ++ eq ++ oEx ++ sc
+   in "<letStatement>\n" ++ indent all ++ "</letStatement>\n"
+astToXML (IfStatement expression ifStatement Nothing) =
+  let i = basicTag "keyword" "if"
+      lp = basicTag "symbol" "("
+      ex = astToXML expression
+      rp = basicTag "symbol" ")"
+      lcb = basicTag "symbol" "{"
+      st = "<statements>\n" ++ indent (concatMap astToXML ifStatement) ++ "</statements>\n"
+      rcb = basicTag "symbol" "}"
+      all = i ++ lp ++ ex ++ rp ++ lcb ++ st ++ rcb
+   in "<ifStatement>\n" ++ indent all ++ "</ifStatement>\n"
+astToXML (IfStatement expression iStatement (Just eStatement)) =
+  let i = basicTag "keyword" "if"
+      lp = basicTag "symbol" "("
+      ex = astToXML expression
+      rp = basicTag "symbol" ")"
+      lcb = basicTag "symbol" "{"
+      is = "<statements>\n" ++ indent (concatMap astToXML iStatement) ++ "</statements>\n"
+      rcb = basicTag "symbol" "}"
+      e = basicTag "keyword" "else"
+      lcb2 = basicTag "symbol" "{"
+      es = "<statements>\n" ++ indent (concatMap astToXML eStatement) ++ "</statements>\n"
+      rcb2 = basicTag "symbol" "}"
+      all = i ++ lp ++ ex ++ rp ++ lcb ++ is ++ rcb ++ e ++ lcb2 ++ es ++ rcb2
+   in "<ifStatement>\n" ++ indent all ++ "</ifStatement>\n"
+astToXML (WhileStatement expression statement) =
+  let w = basicTag "keyword" "while"
+      lp = basicTag "symbol" "("
+      ex = astToXML expression
+      rp = basicTag "symbol" ")"
+      lcb = basicTag "symbol" "{"
+      st = "<statements>\n" ++ indent (concatMap astToXML statement) ++ "</statements>\n"
+      rcb = basicTag "symbol" "}"
+      all = w ++ lp ++ ex ++ rp ++ lcb ++ st ++ rcb
+   in "<whileStatement>\n" ++ indent all ++ "</whileStatement>\n"
+astToXML (DoStatement subCall) =
+  let d = basicTag "keyword" "do"
+      sc = astToXML subCall
+      e = basicTag "symbol" ";"
+      all = d ++ sc ++ e
+   in "<doStatement>\n" ++ indent all ++ "</doStatement>\n"
+astToXML (ReturnStatement Nothing) =
+  let r = basicTag "keyword" "return"
+      sc = basicTag "symbol" ";"
+      all = r ++ sc
+   in "<returnStatement>\n" ++ indent all ++ "</returnStatement>\n"
+astToXML (ReturnStatement (Just expression)) =
+  let r = basicTag "keyword" "return"
+      ex = astToXML expression
+      sc = basicTag "symbol" ";"
+      all = r ++ ex ++ sc
+   in "<returnStatement>\n" ++ indent all ++ "</returnStatement>\n"
+astToXML (Expression first rest) =
+  let t = astToXML first
+      rt = concat . restTermTag $ rest
+      all = t ++ rt
+   in "<expression>\n" ++ indent all ++ "</expression>\n"
+astToXML (ExpressionList Nothing) = "<expressionList>\n</expressionList>\n"
+astToXML (ExpressionList (Just (expression, expressionList))) =
+  let ex = astToXML expression
+      c = if null expressionList then "" else basicTag "symbol" ","
+      exl = concat . putComma . map astToXML $ expressionList
+      all = ex ++ c ++ exl
+   in "<expressionList>\n" ++ indent all ++ "</expressionList>\n"
+astToXML (FunctionCall fName expressionList) =
+  let fn = basicTag "identifier" fName
+      lp = basicTag "symbol" "("
+      exl = astToXML expressionList
+      rp = basicTag "symbol" ")"
+      all = fn ++ lp ++ exl ++ rp
+   in all
+astToXML (SubroutineCall fKind fName expressionList) =
+  let fk = basicTag "identifier" fKind
+      pt = basicTag "symbol" "."
+      fn = basicTag "identifier" fName
+      lp = basicTag "symbol" "("
+      exl = astToXML expressionList
+      rp = basicTag "symbol" ")"
+      all = fk ++ pt ++ fn ++ lp ++ exl ++ rp
+   in all
+astToXML (TermInt i) = "<term>\n" ++ indent (basicTag "integerConstant" (show i)) ++ "</term>\n"
+astToXML (TermString i) = "<term>\n" ++ indent (basicTag "stringConstant" i) ++ "</term>\n"
+astToXML (TermConstant i) = "<term>\n" ++ indent (basicTag "keyword" i) ++ "</term>\n"
+astToXML (TermVar i) = "<term>\n" ++ indent (basicTag "identifier" i) ++ "</term>\n"
+astToXML (TermObj varName expression) =
+  let vn = basicTag "identifier" varName
+      lb = basicTag "symbol" "["
+      ex = astToXML expression
+      rb = basicTag "symbol" "]"
+      all = vn ++ lb ++ ex ++ rb
+   in "<term>\n" ++ indent all ++ "</term>\n"
+astToXML (TermCall sub) = "<term>\n" ++ indent (astToXML sub) ++ "</term>\n"
+astToXML (TermExpr expr) =
+  let rp = basicTag "symbol" "("
+      ex = astToXML expr
+      lp = basicTag "symbol" ")"
+      all = rp ++ ex ++ lp
+   in "<term>\n" ++ indent all ++ "</term>\n"
+astToXML (TermOp "minus" term) =
+  let o = basicTag "symbol" "-"
+      t = astToXML term
+      all = o ++ t
+   in "<term>\n" ++ indent all ++ "</term>\n"
+astToXML (TermOp "tilde" term) =
+  let o = basicTag "symbol" "~"
+      t = astToXML term
+      all = o ++ t
+   in "<term>\n" ++ indent all ++ "</term>\n"
