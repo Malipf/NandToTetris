@@ -103,7 +103,6 @@ parseTokens token =
     "=" -> Symbol EQUAL
     "~" -> Symbol TILDE
     _ | all (`elem` ['0' .. '9']) token -> IntVal (read token)
-    "" -> StrVal ""
     _ | head token == '"' && last token == '"' -> StrVal (init . tail $ token)
     _ -> Identifier token
 
@@ -131,7 +130,8 @@ words_ s =
     else [s]
 
 sus :: String -> [String] -- copy of words function but for sus symbol.
-sus s =                   -- its for seperating token which has been indicated with it
+sus s =
+  -- its for seperating token which has been indicated with it
   case dropWhile (== 'ඞ') s of
     "" -> []
     s' -> w : sus s''

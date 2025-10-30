@@ -6,6 +6,7 @@ import System.Directory (doesDirectoryExist, listDirectory)
 import System.Environment (getArgs)
 import System.FilePath (replaceExtension, takeBaseName, takeExtension, takeFileName, (</>))
 import System.IO (writeFile)
+import VMWriter
 
 main :: IO ()
 main = do
@@ -27,8 +28,11 @@ processJackFile :: FilePath -> IO ()
 processJackFile jackFile = do
   tokens <- parseFile jackFile
   let xmlLines = astToXML . compileClass $ tokens
-  let outFile = replaceExtension jackFile ".xml"
-  writeFile outFile xmlLines
+  let xmlFile = replaceExtension jackFile ".xml"
+  let vmLines = writeClass . compileClass $ tokens
+  let vmFile = replaceExtension jackFile ".vm"
+  writeFile vmFile vmLines
+  writeFile xmlFile xmlLines
 
 getJackFiles :: FilePath -> IO [FilePath]
 getJackFiles dir = do

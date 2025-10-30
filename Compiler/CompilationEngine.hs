@@ -14,14 +14,14 @@ data AST
   | DoStatement AST
   | ReturnStatement (Maybe AST)
   | Expression AST [(String, AST)]
-  | ExpressionList (Maybe (AST, [AST]))
+  | ExpressionList (Maybe [AST])
   | FunctionCall String AST
   | SubroutineCall String String AST
   | TermInt Int
   | TermString String
   | TermConstant String
   | TermVar String
-  | TermObj String AST
+  | TermArr String AST
   | TermCall AST
   | TermExpr AST
   | TermOp String AST
@@ -300,7 +300,7 @@ compileExpressionList state =
     _ ->
       let (expression, state2) = compileExpression state
           (restExpression, state3) = compileExpressionListRest state2
-       in (ExpressionList (Just (expression, restExpression)), state3)
+       in (ExpressionList (Just (expression : restExpression)), state3)
 
 compileExpressionListRest :: [Token] -> ([AST], [Token])
 compileExpressionListRest state =
@@ -368,7 +368,7 @@ compileTerm state =
       let state2 = tail . tail $ state
           (expression, state3) = compileExpression state2
           state4 = consumeToken state3 (Symbol RB)
-       in (TermObj i expression, state4)
+       in (TermArr i expression, state4)
     Just (Identifier i, Symbol j) ->
       if j == POINT || j == LP
         then
@@ -538,11 +538,8 @@ astToXML (Expression first rest) =
       all = t ++ rt
    in "<expression>\n" ++ indent all ++ "</expression>\n"
 astToXML (ExpressionList Nothing) = "<expressionList>\n</expressionList>\n"
-astToXML (ExpressionList (Just (expression, expressionList))) =
-  let ex = astToXML expression
-      c = if null expressionList then "" else basicTag "symbol" ","
-      exl = concat . putComma . map astToXML $ expressionList
-      all = ex ++ c ++ exl
+astToXML (ExpressionList (Just expressionList)) =
+  let all = concat . putComma . map astToXML $ expressionList
    in "<expressionList>\n" ++ indent all ++ "</expressionList>\n"
 astToXML (FunctionCall fName expressionList) =
   let fn = basicTag "identifier" fName
@@ -564,7 +561,7 @@ astToXML (TermInt i) = "<term>\n" ++ indent (basicTag "integerConstant" (show i)
 astToXML (TermString i) = "<term>\n" ++ indent (basicTag "stringConstant" i) ++ "</term>\n"
 astToXML (TermConstant i) = "<term>\n" ++ indent (basicTag "keyword" i) ++ "</term>\n"
 astToXML (TermVar i) = "<term>\n" ++ indent (basicTag "identifier" i) ++ "</term>\n"
-astToXML (TermObj varName expression) =
+astToXML (TermArr varName expression) =
   let vn = basicTag "identifier" varName
       lb = basicTag "symbol" "["
       ex = astToXML expression
