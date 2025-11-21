@@ -66,7 +66,7 @@ toBin 1 = "1"
 toBin x = toBin (x `div` 2) ++ show (x `mod` 2)
 
 toBin16 :: String -> String
-toBin16 x = '0' : replicate (15 - length x) '0' ++ x
+toBin16 x = '0' : replicate_ (15 - length x) '0' ++ x
 
 replicate_ :: Int -> Char -> String
 replicate_ x 
@@ -127,4 +127,5 @@ codegenComp x =
     "A|D" -> "0010101"
     "D|M" -> "1010101"
     "M|D" -> "1010101"
+
     
