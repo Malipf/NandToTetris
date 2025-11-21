@@ -1,0 +1,51 @@
+class Memory {
+	static Array ram;
+
+	function void init(){
+		let ram = 0;
+		let ram[2048] = 0;
+		let ram[2049] = 14334;
+		return;
+	}
+
+	function int peek(int addr) {
+		return ram[addr];
+	}
+
+	function void poke(int addr, int val) {
+		let ram[addr] = val;
+		return;
+	}
+
+	function int alloc(int size){
+		var int nextFree, block;
+		var boolean continue;
+		//if (size < 1) {do Sys.error(5);}
+		let nextFree = 2048;
+		let continue = true;
+		while (continue) { 
+			if (ram[nextFree+1] > (size+1)) {
+				let ram[nextFree+1] = ram[nextFree+1] - (size + 2);
+				let block = ram[nextFree+1] + 4;
+				let ram[block - 1] = size;
+				let ram[block - 2] = 0;
+				let continue = false;
+			}
+			else {
+				if (nextFree[0] = 0) {do Sys.error(6);}
+				else {let nextFree = ram[nextFree];}
+			}
+		}
+		return block;
+	}
+
+	function void deAlloc(int garbage) {
+		var int lastFree;
+		let lastFree = 2048;
+		while (ram[lastFree]>0) {
+			let lastFree = ram[lastFree];
+		}
+		let ram[lastFree] = garbage - 2;
+		return;
+	}
+}

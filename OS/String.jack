@@ -1,0 +1,105 @@
+class String {
+
+    field Array chars;
+    field int currLen, maxLen;
+
+    constructor String new(int maxLength) {
+        //if (maxLength < 0) {do Sys.error(14);}
+        if (maxLength = 0) {let maxLength = 1;}
+        let chars = Array.new(maxLength);
+        let maxLen = maxLength;
+        let currLen = 0;
+        return this; 
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(chars);
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method int length() {
+        return currLen;
+    }
+
+    method char charAt(int j) {
+        //if (~(j < maxLen) | (j < 0)) {do Sys.error(15);}
+        return chars[j];
+    }
+
+    method void setCharAt(int j, char c) {
+       //if (~(j < maxLen) | (j < 0)) {do Sys.error(16);}
+        let chars[j] = c;
+        return;
+    }
+
+    method String appendChar(char c) {
+        //if (~(currLen < maxLen)) {do Sys.error(17);}
+        let chars[currLen] = c;
+        let currLen = currLen + 1;
+        return this;
+    }
+
+    method void eraseLastChar() {
+        //if (currLen = 0) {do Sys.error(18);}
+        let currLen = currLen - 1;
+        return;
+    }
+
+    method int intValue() {
+        var int val, i, d;
+        var boolean neg;
+        let val = 0;
+        if ((chars[0] = 45) & (currLen > 0)) {
+            let i = 1;
+            let neg = true;
+        }
+        else {
+            let i = 0;
+            let neg = false;
+        }
+        
+        while (i < currLen) {
+            let d = chars[i] - 48;
+            if (~(d < 0) & (d < 10)) {
+                let val = (val * 10) + d;
+                let i = i + 1;
+            }
+            else {
+                let i = currLen;
+            }
+        }
+        if (neg) {let val = -val;}
+        return val;
+    }
+
+    method void setInt(int val) {
+        var int lastDigit, tmp;
+        let currLen = 0;
+        if (val < 0) {
+            let val = -val;
+            do appendChar(45);
+        }
+        if (val < 10) {
+            do appendChar(val + 48);
+            return;
+        }
+        let tmp = val / 10;
+        let lastDigit = val - (tmp * 10);
+        do setInt(tmp);
+        do appendChar(lastDigit + 48);
+        return;
+    }
+
+    function char newLine() {
+        return 128;
+    }
+
+    function char backSpace() {
+        return 129;
+    }
+
+    function char doubleQuote() {
+        return 34;
+    }
+}

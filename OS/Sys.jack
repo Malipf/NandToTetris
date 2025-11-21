@@ -1,0 +1,36 @@
+class Sys {
+
+   function void init() {
+        do Math.init();
+        do Memory.init();
+        do Screen.init();
+        do Output.init();
+        do Keyboard.init();
+        do Main.main();
+        do Sys.halt();
+        return;
+    }
+
+   function void halt() {
+        while (true){}
+        return;
+    }
+
+   function void wait(int duration) {
+        //if (duration < 1) {
+        //    do Sys.error(1);
+        //}
+        // NOT IMPLEMENTED
+        return;
+    }
+
+   function void error(int errorCode) {
+        do Output.printString("ERR");
+        do Output.printInt(errorCode);
+        do Sys.halt();
+        return;
+    }
+}
+
+
+

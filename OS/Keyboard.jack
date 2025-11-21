@@ -1,0 +1,48 @@
+class Keyboard {
+	static Array kbdAddr;
+    function void init() {
+		let kbdAddr = 24576;
+		return; 
+    } 
+
+    function char keyPressed() {
+		return kbdAddr[0];
+    }
+
+    function char readChar() {
+		var char c;
+		while (kbdAddr[0] = 0) {}
+		let c = kbdAddr[0];
+		while (kbdAddr[0] = c) {}
+		do Output.printChar(c);
+		return c;
+    }
+
+    function String readLine(String message) {
+		var char c;
+		var String input;
+		let input = String.new(100);
+		do Output.printString(message);
+		while (true) {
+			let c = Keyboard.readChar();
+			if (c = 128) {
+				do Output.println();
+				return input;
+			}
+			if (c = 129) {
+				do Output.backSpace();
+				do Output.backSpace();
+				do input.eraseLastChar();
+			}
+			else {
+				do input.appendChar(c);
+			}
+		}
+    }   
+
+    function int readInt(String message) {
+		var String result;
+		let result = Keyboard.readLine(message);
+		return result.intValue();
+    }
+}
